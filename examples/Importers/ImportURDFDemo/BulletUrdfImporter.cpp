@@ -80,7 +80,7 @@ BulletURDFInternalData
 		m_flags = 0;
 	}
 
-	void setGlobalScaling(btScalar scaling)
+	void setGlobalScaling(btVector3 scaling)
 	{
 		m_urdfParser.setGlobalScaling(scaling);
 	}
@@ -96,7 +96,7 @@ void BulletURDFImporter::printTree()
 
 
 
-BulletURDFImporter::BulletURDFImporter(struct GUIHelperInterface* helper, UrdfRenderingInterface* customConverter, struct CommonFileIOInterface* fileIO,double globalScaling, int flags)
+BulletURDFImporter::BulletURDFImporter(struct GUIHelperInterface* helper, UrdfRenderingInterface* customConverter, struct CommonFileIOInterface* fileIO, btVector3 globalScaling, int flags)
 {
 	m_data = new BulletURDFInternalData(fileIO);
 	m_data->setGlobalScaling(globalScaling);

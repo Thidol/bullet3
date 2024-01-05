@@ -2490,7 +2490,7 @@ struct ProgrammaticUrdfInterface : public URDFImporterInterface
 	virtual int convertLinkVisualShapes(int linkIndex, const char* pathPrefix, const btTransform& localInertiaFrame) const
 	{
 		int graphicsIndex = -1;
-		double globalScaling = 1.f;  //todo!
+		btVector3 globalScaling(1, 1, 1);
 		int flags = 0;
 		CommonFileIOInterface* fileIO = m_data->m_pluginManager.getFileIOInterface();
 
@@ -3613,7 +3613,7 @@ bool PhysicsServerCommandProcessor::loadMjcf(const char* fileName, char* bufferS
 	return loadOk;
 }
 
-bool PhysicsServerCommandProcessor::loadSdf(const char* fileName, char* bufferServerToClient, int bufferSizeInBytes, bool useMultiBody, int flags, btScalar globalScaling)
+bool PhysicsServerCommandProcessor::loadSdf(const char* fileName, char* bufferServerToClient, int bufferSizeInBytes, bool useMultiBody, int flags, btVector3 globalScaling)
 {
 	btAssert(m_data->m_dynamicsWorld);
 	if (!m_data->m_dynamicsWorld)
@@ -3638,7 +3638,7 @@ bool PhysicsServerCommandProcessor::loadSdf(const char* fileName, char* bufferSe
 }
 
 bool PhysicsServerCommandProcessor::loadUrdf(const char* fileName, const btVector3& pos, const btQuaternion& orn,
-											 bool useMultiBody, bool useFixedBase, int* bodyUniqueIdPtr, char* bufferServerToClient, int bufferSizeInBytes, int orgFlags, btScalar globalScaling)
+											 bool useMultiBody, bool useFixedBase, int* bodyUniqueIdPtr, char* bufferServerToClient, int bufferSizeInBytes, int orgFlags, btVector3 globalScaling)
 {
 	//clear the LOAD_SDF_FILE=1 bit, which is reserved for internal use of loadSDF command.
 	int flags = orgFlags & ~1;
@@ -3668,7 +3668,7 @@ bool PhysicsServerCommandProcessor::loadUrdf(const char* fileName, const btVecto
 		{
 			bool use_self_collision = false;
 			use_self_collision = (flags & CUF_USE_SELF_COLLISION);
-			bool ok = processDeformable(u2b.getDeformableModel(), pos, orn, bodyUniqueIdPtr, bufferServerToClient, bufferSizeInBytes, globalScaling, use_self_collision);
+			bool ok = processDeformable(u2b.getDeformableModel(), pos, orn, bodyUniqueIdPtr, bufferServerToClient, bufferSizeInBytes, globalScaling[0], use_self_collision);
 			if (ok)
 			{
 				const UrdfModel* urdfModel = u2b.getUrdfModel();
@@ -3686,7 +3686,7 @@ bool PhysicsServerCommandProcessor::loadUrdf(const char* fileName, const btVecto
 		if (!(u2b.getReducedDeformableModel().m_visualFileName.empty()))
 		{
 			bool use_self_collision = false;
-			return processReducedDeformable(u2b.getReducedDeformableModel(), pos, orn, bodyUniqueIdPtr, bufferServerToClient, bufferSizeInBytes, globalScaling, use_self_collision);
+			return processReducedDeformable(u2b.getReducedDeformableModel(), pos, orn, bodyUniqueIdPtr, bufferServerToClient, bufferSizeInBytes, globalScaling[0], use_self_collision);
 		}
 		bool ok = processImportedObjects(fileName, bufferServerToClient, bufferSizeInBytes, useMultiBody, flags, u2b);
 		if (ok)
@@ -5770,7 +5770,7 @@ bool PhysicsServerCommandProcessor::processCreateVisualShapeCommand(const struct
 {
 	bool hasStatus = true;
 	serverStatusOut.m_type = CMD_CREATE_VISUAL_SHAPE_FAILED;
-	double globalScaling = 1.f;
+	btVector3 globalScaling(1, 1, 1);
 	int flags = 0;
 	CommonFileIOInterface* fileIO = m_data->m_pluginManager.getFileIOInterface();
 	BulletURDFImporter u2b(m_data->m_guiHelper, m_data->m_pluginManager.getRenderInterface(), fileIO, globalScaling, flags);
@@ -9034,7 +9034,10 @@ bool PhysicsServerCommandProcessor::processLoadSDFCommand(const struct SharedMem
 	{
 		globalScaling = sdfArgs.m_globalScaling;
 	}
-	bool completedOk = loadSdf(sdfArgs.m_sdfFileName, bufferServerToClient, bufferSizeInBytes, useMultiBody, flags, globalScaling);
+	bool completedOk = loadSdf(sdfArgs.m_sdfFileName, bufferServerToClient, bufferSizeInBytes, useMultiBody, flags, btVector3(globalScaling, globalScaling, globalScaling));
+
+	// NOTE: This function is probably unusable after setting globalScaling to a btVector
+
 	if (completedOk)
 	{
 		m_data->m_guiHelper->autogenerateGraphicsObjects(this->m_data->m_dynamicsWorld);
@@ -9189,10 +9192,12 @@ bool PhysicsServerCommandProcessor::processLoadURDFCommand(const struct SharedMe
 	bool useMultiBody = (clientCmd.m_updateFlags & URDF_ARGS_USE_MULTIBODY) ? (urdfArgs.m_useMultiBody != 0) : true;
 	bool useFixedBase = (clientCmd.m_updateFlags & URDF_ARGS_USE_FIXED_BASE) ? (urdfArgs.m_useFixedBase != 0) : false;
 	int bodyUniqueId;
-	btScalar globalScaling = 1.f;
+	btVector3 globalScaling(1, 1, 1);
 	if (clientCmd.m_updateFlags & URDF_ARGS_USE_GLOBAL_SCALING)
 	{
-		globalScaling = urdfArgs.m_globalScaling;
+		globalScaling[0] = urdfArgs.m_globalScaling[0];
+		globalScaling[1] = urdfArgs.m_globalScaling[1];
+		globalScaling[2] = urdfArgs.m_globalScaling[2];
 	}
 	//load the actual URDF and send a report: completed or failed
 	bool completedOk = loadUrdf(urdfArgs.m_urdfFileName,

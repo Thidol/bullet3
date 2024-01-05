@@ -9,7 +9,7 @@ using namespace tinyxml2;
 UrdfParser::UrdfParser(CommonFileIOInterface* fileIO)
 	: m_parseSDF(false),
 	  m_activeSdfModel(-1),
-	  m_urdfScaling(1),
+	  m_urdfScaling(btVector3(1, 1, 1)),
 	  m_fileIO(fileIO)
 {
 	m_urdf2Model.m_sourceFile = "IN_MEMORY_STRING";  // if loadUrdf() called later, source file name will be replaced with real
@@ -174,7 +174,7 @@ bool UrdfParser::parseTransform(btTransform& tr, XMLElement* xml, ErrorLogger* l
 			parseVector3(vec, std::string(xyz_str), logger);
 		}
 	}
-	tr.setOrigin(vec * m_urdfScaling);
+	tr.setOrigin(vec * m_urdfScaling); // Changed into elementwise vector multiplication
 
 	if (parseSDF)
 	{
@@ -388,7 +388,7 @@ bool UrdfParser::parseGeometry(UrdfGeometry& geom, XMLElement* g, ErrorLogger* l
 			}
 			else
 			{
-				geom.m_sphereRadius = m_urdfScaling * urdfLexicalCast<double>(shape->Attribute("radius"));
+				geom.m_sphereRadius = m_urdfScaling[0] * urdfLexicalCast<double>(shape->Attribute("radius"));
 			}
 		}
 	}
@@ -432,12 +432,12 @@ bool UrdfParser::parseGeometry(UrdfGeometry& geom, XMLElement* g, ErrorLogger* l
 			if (XMLElement* scale = shape->FirstChildElement("radius"))
 			{
 				parseVector3(geom.m_meshScale, scale->GetText(), logger);
-				geom.m_capsuleRadius = m_urdfScaling * urdfLexicalCast<double>(scale->GetText());
+				geom.m_capsuleRadius = m_urdfScaling[0] * urdfLexicalCast<double>(scale->GetText());
 			}
 			if (XMLElement* scale = shape->FirstChildElement("length"))
 			{
 				parseVector3(geom.m_meshScale, scale->GetText(), logger);
-				geom.m_capsuleHeight = m_urdfScaling * urdfLexicalCast<double>(scale->GetText());
+				geom.m_capsuleHeight = m_urdfScaling[0] * urdfLexicalCast<double>(scale->GetText());
 			}
 		}
 		else
@@ -447,8 +447,8 @@ bool UrdfParser::parseGeometry(UrdfGeometry& geom, XMLElement* g, ErrorLogger* l
 				logger->reportError("Cylinder shape must have both length and radius attributes");
 				return false;
 			}
-			geom.m_capsuleRadius = m_urdfScaling * urdfLexicalCast<double>(shape->Attribute("radius"));
-			geom.m_capsuleHeight = m_urdfScaling * urdfLexicalCast<double>(shape->Attribute("length"));
+			geom.m_capsuleRadius = m_urdfScaling[0] * urdfLexicalCast<double>(shape->Attribute("radius"));
+			geom.m_capsuleHeight = m_urdfScaling[0] * urdfLexicalCast<double>(shape->Attribute("length"));
 		}
 	}
 	else if (type_name == "capsule")
@@ -460,12 +460,12 @@ bool UrdfParser::parseGeometry(UrdfGeometry& geom, XMLElement* g, ErrorLogger* l
 			if (XMLElement* scale = shape->FirstChildElement("radius"))
 			{
 				parseVector3(geom.m_meshScale, scale->GetText(), logger);
-				geom.m_capsuleRadius = m_urdfScaling * urdfLexicalCast<double>(scale->GetText());
+				geom.m_capsuleRadius = m_urdfScaling[0] * urdfLexicalCast<double>(scale->GetText());
 			}
 			if (XMLElement* scale = shape->FirstChildElement("length"))
 			{
 				parseVector3(geom.m_meshScale, scale->GetText(), logger);
-				geom.m_capsuleHeight = m_urdfScaling * urdfLexicalCast<double>(scale->GetText());
+				geom.m_capsuleHeight = m_urdfScaling[0] * urdfLexicalCast<double>(scale->GetText());
 			}
 		}
 		else
@@ -475,8 +475,8 @@ bool UrdfParser::parseGeometry(UrdfGeometry& geom, XMLElement* g, ErrorLogger* l
 				logger->reportError("Capsule shape must have both length and radius attributes");
 				return false;
 			}
-			geom.m_capsuleRadius = m_urdfScaling * urdfLexicalCast<double>(shape->Attribute("radius"));
-			geom.m_capsuleHeight = m_urdfScaling * urdfLexicalCast<double>(shape->Attribute("length"));
+			geom.m_capsuleRadius = m_urdfScaling[0] * urdfLexicalCast<double>(shape->Attribute("radius"));
+			geom.m_capsuleHeight = m_urdfScaling[0] * urdfLexicalCast<double>(shape->Attribute("length"));
 		}
 	}
 	else if ((type_name == "mesh") || (type_name == "cdf"))
@@ -525,7 +525,7 @@ bool UrdfParser::parseGeometry(UrdfGeometry& geom, XMLElement* g, ErrorLogger* l
 			}
 		}
 
-		geom.m_meshScale *= m_urdfScaling;
+		geom.m_meshScale *= m_urdfScaling;      // Changed into elementwise vector multiplication
 
 		if (fn.empty())
 		{
@@ -1505,8 +1505,8 @@ bool UrdfParser::parseJointLimits(UrdfJoint& joint, XMLElement* config, ErrorLog
 
 		if (joint.m_type == URDFPrismaticJoint)
 		{
-			joint.m_lowerLimit *= m_urdfScaling;
-			joint.m_upperLimit *= m_urdfScaling;
+			joint.m_lowerLimit *= m_urdfScaling[0];
+			joint.m_upperLimit *= m_urdfScaling[0];
 		}
 
 		

@@ -103,7 +103,7 @@ struct UrdfArgs
 	int m_useMultiBody;
 	int m_useFixedBase;
 	int m_urdfFlags;
-	double m_globalScaling;
+	double m_globalScaling[3];
 };
 
 struct MjcfArgs

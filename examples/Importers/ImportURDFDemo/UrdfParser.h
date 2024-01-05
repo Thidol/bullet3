@@ -347,7 +347,7 @@ protected:
 	bool m_parseSDF;
 	int m_activeSdfModel;
 
-	btScalar m_urdfScaling;
+	btVector3 m_urdfScaling;
 
 	struct CommonFileIOInterface* m_fileIO;
 
@@ -379,7 +379,7 @@ public:
 	{
 		return m_parseSDF;
 	}
-	void setGlobalScaling(btScalar scaling)
+	void setGlobalScaling(btVector3 scaling)
 	{
 		m_urdfScaling = scaling;
 	}

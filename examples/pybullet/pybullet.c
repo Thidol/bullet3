@@ -1931,8 +1931,12 @@ static PyObject* pybullet_loadURDF(PyObject* self, PyObject* args, PyObject* key
 	static char* kwlistBackwardCompatible8[] = {"fileName", "startPosX", "startPosY", "startPosZ", "startOrnX", "startOrnY", "startOrnZ", "startOrnW", NULL};
 
 	int bodyUniqueId = -1;
-	const char* urdfFileName = "";
-	double globalScaling = -1;
+	const char* urdfFileName = "";	
+	PyObject* globalScaling = 0;
+	double baseScl[3];
+	double startSclX = 0.0;
+	double startSclY = 0.0;
+	double startSclZ = 0.0;
 	double startPosX = 0.0;
 	double startPosY = 0.0;
 	double startPosZ = 0.0;
@@ -2004,6 +2008,19 @@ static PyObject* pybullet_loadURDF(PyObject* self, PyObject* args, PyObject* key
 		}
 	}
 
+
+	if(!pybullet_internalSetVectord(globalScaling, baseScl))
+		{
+			PyErr_SetString(SpamError,"Cannot convert globalScaling. Your custom code failed!");
+			return NULL;
+		}
+		startSclX = baseScl[0];
+		startSclY = baseScl[1];
+		startSclZ = baseScl[2];
+
+		b3LoadUrdfCommandSetGlobalScaling(command, startSclX, startSclY, startSclZ); // command not yet declared in this scope...
+
+
 	sm = getPhysicsClient(physicsClientId);
 	if (sm == 0)
 	{
@@ -2035,10 +2052,6 @@ static PyObject* pybullet_loadURDF(PyObject* self, PyObject* args, PyObject* key
 		if (useFixedBase)
 		{
 			b3LoadUrdfCommandSetUseFixedBase(command, 1);
-		}
-		if (globalScaling > 0)
-		{
-			b3LoadUrdfCommandSetGlobalScaling(command, globalScaling);
 		}
 		statusHandle = b3SubmitClientCommandAndWaitStatus(sm, command);
 		statusType = b3GetStatusType(statusHandle);

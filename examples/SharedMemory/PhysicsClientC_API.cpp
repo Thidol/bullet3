@@ -537,14 +537,23 @@ B3_SHARED_API int b3LoadUrdfCommandSetUseMultiBody(b3SharedMemoryCommandHandle c
 	return 0;
 }
 
-B3_SHARED_API int b3LoadUrdfCommandSetGlobalScaling(b3SharedMemoryCommandHandle commandHandle, double globalScaling)
+B3_SHARED_API int b3LoadUrdfCommandSetGlobalScaling(b3SharedMemoryCommandHandle commandHandle,double globalScalingX, double globalScalingY, double globalScalingZ)
 {
 	struct SharedMemoryCommand* command = (struct SharedMemoryCommand*)commandHandle;
 	b3Assert(command);
-	b3Assert(command->m_type == CMD_LOAD_URDF);
-	command->m_updateFlags |= URDF_ARGS_USE_GLOBAL_SCALING;
-	command->m_urdfArguments.m_globalScaling = globalScaling;
-	return 0;
+	if (command)
+	{
+		b3Assert(command->m_type == CMD_LOAD_URDF);
+		if (command->m_type == CMD_LOAD_URDF)
+		{
+			command->m_urdfArguments.m_globalScaling[0] = globalScalingX;
+			command->m_urdfArguments.m_globalScaling[1] = globalScalingY;
+			command->m_urdfArguments.m_globalScaling[2] = globalScalingZ;
+			command->m_updateFlags |= URDF_ARGS_USE_GLOBAL_SCALING;
+		}
+		return 0;
+	}
+	return -1;
 }
 
 B3_SHARED_API int b3LoadSdfCommandSetUseMultiBody(b3SharedMemoryCommandHandle commandHandle, int useMultiBody)
