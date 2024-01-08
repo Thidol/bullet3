@@ -1976,7 +1976,7 @@ static PyObject* pybullet_loadURDF(PyObject* self, PyObject* args, PyObject* key
 		double basePos[3];
 		double baseOrn[4];
 
-		if (!PyArg_ParseTupleAndKeywords(args, keywds, "s|OOiiidi", kwlist, &urdfFileName, &basePosObj, &baseOrnObj, &useMaximalCoordinates, &useFixedBase, &flags, &globalScaling, &physicsClientId))
+		if (!PyArg_ParseTupleAndKeywords(args, keywds, "s|OOiiiOi", kwlist, &urdfFileName, &basePosObj, &baseOrnObj, &useMaximalCoordinates, &useFixedBase, &flags, &globalScaling, &physicsClientId))
 		{
 			return NULL;
 		}
@@ -2005,20 +2005,20 @@ static PyObject* pybullet_loadURDF(PyObject* self, PyObject* args, PyObject* key
 				startOrnZ = baseOrn[2];
 				startOrnW = baseOrn[3];
 			}
+			if (globalScaling)
+			{
+				if(!pybullet_internalSetVectord(globalScaling, baseScl))
+				{
+					PyErr_SetString(SpamError,"Cannot convert globalScaling. Your custom code failed!");
+					return NULL;
+				}
+				startSclX = baseScl[0];
+				startSclY = baseScl[1];
+				startSclZ = baseScl[2];
+			}
 		}
 	}
 
-
-	if(!pybullet_internalSetVectord(globalScaling, baseScl))
-		{
-			PyErr_SetString(SpamError,"Cannot convert globalScaling. Your custom code failed!");
-			return NULL;
-		}
-		startSclX = baseScl[0];
-		startSclY = baseScl[1];
-		startSclZ = baseScl[2];
-
-		b3LoadUrdfCommandSetGlobalScaling(command, startSclX, startSclY, startSclZ); // command not yet declared in this scope...
 
 
 	sm = getPhysicsClient(physicsClientId);
@@ -2045,6 +2045,12 @@ static PyObject* pybullet_loadURDF(PyObject* self, PyObject* args, PyObject* key
 		b3LoadUrdfCommandSetStartPosition(command, startPosX, startPosY, startPosZ);
 		b3LoadUrdfCommandSetStartOrientation(command, startOrnX, startOrnY,
 											 startOrnZ, startOrnW);
+
+		if (globalScaling)
+		{
+			b3LoadUrdfCommandSetGlobalScaling(command, startSclX, startSclY, startSclZ);
+		}
+
 		if (useMaximalCoordinates >= 0)
 		{
 			b3LoadUrdfCommandSetUseMultiBody(command, useMaximalCoordinates == 0);
