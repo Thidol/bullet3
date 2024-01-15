@@ -3668,7 +3668,7 @@ bool PhysicsServerCommandProcessor::loadUrdf(const char* fileName, const btVecto
 		{
 			bool use_self_collision = false;
 			use_self_collision = (flags & CUF_USE_SELF_COLLISION);
-			bool ok = processDeformable(u2b.getDeformableModel(), pos, orn, bodyUniqueIdPtr, bufferServerToClient, bufferSizeInBytes, globalScaling[0], use_self_collision);
+			bool ok = processDeformable(u2b.getDeformableModel(), pos, orn, bodyUniqueIdPtr, bufferServerToClient, bufferSizeInBytes, globalScaling, use_self_collision);
 			if (ok)
 			{
 				const UrdfModel* urdfModel = u2b.getUrdfModel();
@@ -3686,7 +3686,7 @@ bool PhysicsServerCommandProcessor::loadUrdf(const char* fileName, const btVecto
 		if (!(u2b.getReducedDeformableModel().m_visualFileName.empty()))
 		{
 			bool use_self_collision = false;
-			return processReducedDeformable(u2b.getReducedDeformableModel(), pos, orn, bodyUniqueIdPtr, bufferServerToClient, bufferSizeInBytes, globalScaling[0], use_self_collision);
+			return processReducedDeformable(u2b.getReducedDeformableModel(), pos, orn, bodyUniqueIdPtr, bufferServerToClient, bufferSizeInBytes, globalScaling, use_self_collision);
 		}
 		bool ok = processImportedObjects(fileName, bufferServerToClient, bufferSizeInBytes, useMultiBody, flags, u2b);
 		if (ok)
@@ -9294,7 +9294,7 @@ void constructUrdfDeformable(const struct SharedMemoryCommand& clientCmd, UrdfDe
 #endif
 }
 
-bool PhysicsServerCommandProcessor::processDeformable(const UrdfDeformable& deformable, const btVector3& pos, const btQuaternion& orn, int* bodyUniqueId, char* bufferServerToClient, int bufferSizeInBytes, btScalar scale, bool useSelfCollision)
+bool PhysicsServerCommandProcessor::processDeformable(const UrdfDeformable& deformable, const btVector3& pos, const btQuaternion& orn, int* bodyUniqueId, char* bufferServerToClient, int bufferSizeInBytes, btVector3 scale, bool useSelfCollision)
 {
 #ifndef SKIP_SOFT_BODY_MULTI_BODY_DYNAMICS_WORLD
 	btSoftBody* psb = NULL;
@@ -9574,7 +9574,7 @@ bool PhysicsServerCommandProcessor::processDeformable(const UrdfDeformable& defo
 			psb->setTotalMass(deformable.m_mass, true);
 		}
 #endif  //SKIP_SOFT_BODY_MULTI_BODY_DYNAMICS_WORLD
-		psb->scale(btVector3(scale, scale, scale));
+		psb->scale(btVector3(scale[0], scale[1], scale[2]));  //This is awkward
 		psb->rotate(orn);
 		psb->translate(pos);
 
@@ -9817,7 +9817,7 @@ bool PhysicsServerCommandProcessor::processDeformable(const UrdfDeformable& defo
 	return true;
 }
 
-bool PhysicsServerCommandProcessor::processReducedDeformable(const UrdfReducedDeformable& reduced_deformable, const btVector3& pos, const btQuaternion& orn, int* bodyUniqueId, char* bufferServerToClient, int bufferSizeInBytes, btScalar scale, bool useSelfCollision)
+bool PhysicsServerCommandProcessor::processReducedDeformable(const UrdfReducedDeformable& reduced_deformable, const btVector3& pos, const btQuaternion& orn, int* bodyUniqueId, char* bufferServerToClient, int bufferSizeInBytes, btVector3 scale, bool useSelfCollision)
 {
 #ifndef SKIP_SOFT_BODY_MULTI_BODY_DYNAMICS_WORLD
 	btReducedDeformableBody* rsb = NULL;
@@ -10006,7 +10006,7 @@ bool PhysicsServerCommandProcessor::processReducedDeformable(const UrdfReducedDe
 // 			rsb->setTotalMass(reduced_deformable.m_mass, true);
 // 		}
 // #endif  //SKIP_SOFT_BODY_MULTI_BODY_DYNAMICS_WORLD
-		rsb->scale(btVector3(scale, scale, scale));
+		rsb->scale(btVector3(scale[0], scale[1], scale[2])); //See also line 9577
 		btTransform init_transform;
 		init_transform.setOrigin(pos);
 		init_transform.setRotation(orn);
@@ -10283,10 +10283,13 @@ bool PhysicsServerCommandProcessor::processLoadSoftBodyCommand(const struct Shar
 		initialOrn[3] = clientCmd.m_loadSoftBodyArguments.m_initialOrientation[3];
 	}
 
-	double scale = 1;
+	btVector3 scale = btVector3(1, 1, 1);
 	if (clientCmd.m_updateFlags & LOAD_SOFT_BODY_UPDATE_SCALE)
 	{
-		scale = clientCmd.m_loadSoftBodyArguments.m_scale;
+		scale[0] = clientCmd.m_loadSoftBodyArguments.m_scale; //might be broken now
+		scale[1] = clientCmd.m_loadSoftBodyArguments.m_scale;
+		scale[2] = clientCmd.m_loadSoftBodyArguments.m_scale;
+		
 	}
 	bool use_self_collision = false;
 	if (clientCmd.m_updateFlags & LOAD_SOFT_BODY_USE_SELF_COLLISION)
