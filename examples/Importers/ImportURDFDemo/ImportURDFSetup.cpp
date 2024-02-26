@@ -170,7 +170,7 @@ void ImportUrdfSetup::initPhysics()
 	}
 
 	int flags = 0;
-	double globalScaling = 1;
+	btVector3 globalScaling = btVector3(1, 1, 1);
 
 	BulletURDFImporter u2b(m_guiHelper, 0, 0, globalScaling, flags);
 
