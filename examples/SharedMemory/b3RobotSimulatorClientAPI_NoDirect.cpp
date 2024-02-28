@@ -248,6 +248,9 @@ int b3RobotSimulatorClientAPI_NoDirect::loadURDF(const std::string& fileName, co
 	b3LoadUrdfCommandSetStartPosition(command, args.m_startPosition[0],
 									  args.m_startPosition[1],
 									  args.m_startPosition[2]);
+
+	b3LoadUrdfCommandSetGlobalScaling(command, args.m_globalScaling[0], args.m_globalScaling[1], args.m_globalScaling[2]); //TTD edit
+
 	b3LoadUrdfCommandSetStartOrientation(command, args.m_startOrientation[0], args.m_startOrientation[1], args.m_startOrientation[2], args.m_startOrientation[3]);
 	if (args.m_forceOverrideFixedBase)
 	{

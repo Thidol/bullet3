@@ -20,6 +20,8 @@ struct b3RobotSimulatorLoadUrdfFileArgs
 	bool m_forceOverrideFixedBase;
 	bool m_useMultiBody;
 	int m_flags;
+	btVector3 m_globalScaling;
+
 
 	b3RobotSimulatorLoadUrdfFileArgs(const btVector3 &startPos, const btQuaternion &startOrn)
 		: m_startPosition(startPos),

@@ -51,7 +51,7 @@ public:
 		this->createEmptyDynamicsWorld();
 		m_dynamicsWorld->setGravity(m_gravity);
 		b3BulletDefaultFileIO fileIO;
-		BulletURDFImporter urdf_importer(&m_nogfx, 0, &fileIO, 1, 0);
+		BulletURDFImporter urdf_importer(&m_nogfx, 0, &fileIO, btVector3 (1, 1, 1), 0);
 		URDFImporterInterface &u2b(urdf_importer);
 		bool loadOk = u2b.loadURDF(m_filename.c_str(), m_base_fixed);
 

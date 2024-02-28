@@ -1,38 +1,461 @@
 
-#ifdef B3_USE_ROBOTSIM_GUI
+
 #include "b3RobotSimulatorClientAPI.h"
-#else
+
 #include "b3RobotSimulatorClientAPI_NoGUI.h"
-#endif
+
+//#include "btCustom.h"
 
 #include "../Utils/b3Clock.h"
 
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
+
+#include <fstream>
+#include <sstream>
+#include <iostream>
+
+#include "libxl.h"
+
+
 #define ASSERT_EQ(a, b) assert((a) == (b));
 #include "MinitaurSetup.h"
 
+//Start class btcustom
+//This needs to be refactored if it gets any further use
+
+#include <vector>
+#include <string>
+#include <array>
+
+float Deg2Rad(float deg) {
+	return deg * (3.14159265359 / 180);
+}
+
+class btCustom
+{
+private:
+	b3RobotSimulatorClientAPI_NoGUI* m_sim;
+
+public:
+
+	btCustom(bool GUI)
+	{
+
+		//This if - else statement somehow breaks it
+
+		/*
+		if (GUI) {
+			b3RobotSimulatorClientAPI_NoGUI* m_sim = new b3RobotSimulatorClientAPI();
+			m_sim->connect(eCONNECT_GUI);
+		}
+		else {
+			b3RobotSimulatorClientAPI_NoGUI* m_sim = new b3RobotSimulatorClientAPI_NoGUI();
+			m_sim->connect(eCONNECT_DIRECT);
+		}
+		printf("\n");
+		printf("Simulation Connected\n");
+		
+		*/
+
+		b3RobotSimulatorClientAPI* m_sim = new b3RobotSimulatorClientAPI();
+		bool isConnected = m_sim->connect(eCONNECT_GUI);
+
+		//b3RobotSimulatorClientAPI_NoGUI* sim = new b3RobotSimulatorClientAPI_NoGUI();
+		//bool isConnected = sim->connect(eCONNECT_DIRECT);
+
+		printf("Connected!");
+
+		//#####################################################
+
+
+		m_sim->configureDebugVisualizer(COV_ENABLE_GUI, 0);
+		m_sim->setTimeOut(10);
+		m_sim->syncBodies();
+		btScalar fixedTimeStep = 1. / 240.;
+
+		m_sim->setTimeStep(fixedTimeStep);
+		m_sim->setGravity(btVector3(0, 0, -9.8));
+
+		//#############################################################
+		//Resetting world
+		b3RobotSimulatorLoadUrdfFileArgs planePos;
+		planePos.m_startPosition = btVector3(0, 0, -0.2);
+		planePos.m_globalScaling = btVector3(1, 1, 1);
+		m_sim->loadURDF("plane.urdf", planePos);
+
+		b3RobotSimulatorCreateCollisionShapeArgs palletShape;
+		b3RobotSimulatorCreateMultiBodyArgs mPalletShape;
+		int palletID;
+		int mPalletID;
+
+		palletShape.m_halfExtents = btVector3(0.4, 0.6, 0.1);
+
+		palletID = m_sim->createCollisionShape(3, palletShape); //first int is shapeType, in this case 3 = cube 
+		mPalletShape.m_baseMass = 0;
+		mPalletShape.m_baseCollisionShapeIndex = palletID;
+		mPalletShape.m_basePosition = btVector3(0.4, 0.6, -0.1);
+		mPalletID = m_sim->createMultiBody(mPalletShape);
+
+
+		b3RobotSimulatorCreateCollisionShapeArgs shape;
+		b3RobotSimulatorCreateMultiBodyArgs body;
+		int shapeID;
+		int bodyID;
+
+		shape.m_halfExtents = btVector3(0.01, 0.01, 1);
+
+		shapeID = m_sim->createCollisionShape(3, shape); //first int is shapeType, in this case 3 = cube 
+
+		body.m_baseMass = 0;
+		body.m_baseCollisionShapeIndex = shapeID;
+		body.m_basePosition = btVector3(-0.01, -0.01, 1);
+		bodyID = m_sim->createMultiBody(body);
+		
+
+		//#############################################################
+		//Reading an excel
+
+		/*
+
+		libxl::Book* book = xlCreateBook();
+
+		if (book->loadSheet("stacks_003000.xls", 5))
+		{
+			printf("that was easy!");
+		}
+		*/
+
+		//#############################################################
+		//Reading an csv
+
+		std::string filename{ "resources/stacks_003000.csv" };
+		std::fstream input{ filename };
+
+		if (!input.is_open()) {
+			printf("Couldn't read file");
+		}
+		else {
+			printf("found the file");
+		}
+		
+		std::vector<int> boxes;
+
+		for (std::string line; std::getline(input, line);) {
+
+			std::istringstream ss(std::move(line));
+			std::vector<float> data;
+
+			printf("analyzing line\n");
+			for (std::string cel; std::getline(ss, cel, ',');) {
+				float value = std::stof(cel);                       //conversion to float
+				data.push_back(std::move(value));
+				printf("analyzed value: ");
+				std::cout << value << '\n';
+			}
+
+			//data: index, x, y, z, w, l, h, orient, mass
+			//        0  , 1, 2, 3, 4, 5, 6,   7   , 8
+
+			printf("file read \n");
+
+			float x = data[1];
+			float y = data[2];
+			float z = data[3];
+			float w = data[4];
+			float l = data[5];
+			float h = data[6];
+
+			float x0 = x + (w / 2);
+			float y0 = y + (l / 2);
+			float z0 = z + (h / 2);
+
+			if (false) {  //simple boxes
+
+				b3RobotSimulatorCreateCollisionShapeArgs boxSize;
+				b3RobotSimulatorCreateMultiBodyArgs boxParam;
+				int cBoxID;
+				int boxID;
+
+				boxSize.m_halfExtents = btVector3(w / 2, l / 2, h / 2);
+
+				cBoxID = m_sim->createCollisionShape(3, boxSize); //first int is shapeType, in this case 3 = cube 
+				boxParam.m_baseMass = 1;
+				boxParam.m_baseCollisionShapeIndex = cBoxID;
+				boxParam.m_basePosition = btVector3(x0, y0, z0);
+				boxID = m_sim->createMultiBody(boxParam);
+
+				boxes.push_back(boxID);
+			}
+			else {    // Pre-deformed boxes
+				b3RobotSimulatorLoadUrdfFileArgs args;
+				args.m_startPosition = btVector3(x0, y0, z0);
+				args.m_globalScaling = btVector3(w, l, h);
+
+				int boxID = m_sim->loadURDF("resources/unitBox.urdf", args);
+			}
+
+			
+		}
+
+		printf("done loading boxes, starting simulation\n");
+
+		//#############################################################
+		//Get the angles
+
+		//Hyperparameters
+		
+		int maxsteps = 240;
+		float tolerance = 0.05;
+		float theta_range[14] = { 0, 1, 2, 3, 4, 5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 10 };
+		float phi_range[4] = { 0, 90 , 180, 270 };
+		std::vector<float> angles;										// 4 resulting angles
+
+		//start logging
+
+		int bcount = boxes.size();
+		std::vector<btVector3> loc_0;
+
+		for (unsigned int i = 0; i < boxes.size(); i++) {               // save starting locations
+			btVector3 position;
+			btQuaternion orientation;
+			m_sim->getBasePositionAndOrientation(boxes[i], position, orientation);
+			loc_0.push_back(position);
+		}
+
+		printf("state saved\n");
+
+		int state = m_sim->saveStateToMemory();				           // save starting state
+
+		for (float phi : phi_range) {								// direction  angle of tilt
+
+			float fallAngle = 15;
+
+			for (float theta : theta_range) {                       // iterating through list of angles
+
+				float x = 10 * sin(Deg2Rad(theta)) * sin(Deg2Rad(phi));
+				float y = 10 * sin(Deg2Rad(theta)) * cos(Deg2Rad(phi));
+				float z = -10 * cos(Deg2Rad(theta));
+
+				m_sim->setGravity(btVector3(x, y, z));                //Change gravity
+
+				for (unsigned int i = 0; i < maxsteps; i++) {         //Simulate for a bit
+					m_sim->stepSimulation();
+					//printf("simulating...\n");
+				}
+
+				printf("checking displacements\n");
+
+				std::vector<btVector3> loc;                           // get locations
+				for (unsigned int i = 0; i < boxes.size(); i++) {
+					btVector3 position;
+					btQuaternion orientation;
+					m_sim->getBasePositionAndOrientation(boxes[i], position, orientation);
+					loc.push_back(position);
+				}
+
+				if (loc_0.size() != loc.size()) {
+					printf("error!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+				}
+				else {												   // calculate displacement
+					for (unsigned int j = 0; j < loc.size(); j++) {
+
+						float dx = pow(loc[j][0] - loc_0[j][0], 2);
+						float dy = pow(loc[j][1] - loc_0[j][1], 2);
+						float dz = pow(loc[j][2] - loc_0[j][2], 2);
+						float dist = pow(dx + dy + dz, 0.5);
+
+						if (dist > tolerance) {
+							fallAngle = theta;
+							break;								        //break theta loop
+						}
+					}
+				}
+				
+			}
+			angles.push_back(fallAngle);
+			std::cout << "for phi = " << phi << "angle calculated: theta = " << fallAngle << "\n";
+			m_sim->restoreStateFromMemory(state);
+
+			
+		}
+
+		//reset world and remove state
+		m_sim->removeState(state);
+
+		printf("done calculating angles!");
+
+		//#############################################################
+		/*
+		
+		b3RobotSimulatorCreateCollisionShapeArgs boxShape;
+
+		b3RobotSimulatorCreateMultiBodyArgs bodyShape;
+		int boxInt;
+		int box;
+
+		boxShape.m_halfExtents = btVector3(0.5, 0.5, 1);
+
+		boxInt = m_sim->createCollisionShape(3, boxShape); //first int is shapeType, in this case 3 = cube 
+		bodyShape.m_baseMass = 1;
+		bodyShape.m_baseCollisionShapeIndex = boxInt;
+		bodyShape.m_basePosition = btVector3(1, 1, 1);
+		box = m_sim->createMultiBody(bodyShape);
+		*/
+
+		//#############################################################
+
+		b3Clock clock;
+		double startTime = clock.getTimeInSeconds();
+		double simWallClockSeconds = 20.;
+#if 1
+		while (clock.getTimeInSeconds() - startTime < simWallClockSeconds)
+		{
+			m_sim->stepSimulation();
+		}
+#endif
+		m_sim->setRealTimeSimulation(false);
+		int vidLogId = -1;
+		int minitaurLogId = -1;
+		int rotateCamera = 0;
+
+
+		printf("sim->disconnect\n");
+
+		m_sim->disconnect();
+
+		printf("delete sim\n");
+		delete m_sim;
+
+		printf("exit\n");
+
+	}
+
+	~btCustom()
+	{
+		m_sim->disconnect();
+		delete m_sim;
+	}
+
+	enum boxtype { deform, soft, simple };
+
+	void btCustom::resetWorld()  //(bool deformable)
+	{
+
+		/*
+
+		m_sim->resetSimulation(); //Check if flags can be supplied for deformable world
+		
+		b3RobotSimulatorCreateCollisionShapeArgs arg ;
+		arg.m_halfExtents = btVector3(0.4,  0.6,  0.1);
+		int palletShape = m_sim->createCollisionShape(GEOM_BOX, arg);
+		b3RobotSimulatorCreateMultiBodyArgs args;
+		args.m_baseMass = 1;
+		args.m_baseCollisionShapeIndex = palletShape;
+		args.m_basePosition = btVector3(0.4, 0.6, -0.1);
+		int pallet = m_sim->createMultiBody(args);
+
+		*/
+
+
+	}
+
+	int btCustom::loadBox(btCustom::boxtype boxtype, float w, float l, float h, float x, float y, float z, float mass)
+	{
+		//b3RobotSimulatorLoadUrdfFileArgs boxshape;
+		//boxshape.m_startPosition = btVector3(x0, y0, z0);
+		//boxshape.
+
+		float x0 = x + w / 2;
+		float y0 = y + l / 2;
+		float z0 = z + h / 2;
+
+		b3RobotSimulatorCreateCollisionShapeArgs boxShape;
+
+		b3RobotSimulatorCreateMultiBodyArgs bodyShape;
+		int boxInt;
+		int box;
+
+		switch (boxtype)
+		{
+		case btCustom::deform:
+			break;
+		case btCustom::soft:
+			break;
+		case btCustom::simple:
+			
+			boxShape.m_halfExtents = btVector3(w/2, l/2, h/2);
+
+			boxInt = m_sim->createCollisionShape(3, boxShape); //first int is shapeType, in this case 3 = cube
+			bodyShape.m_baseMass = mass;
+			bodyShape.m_baseCollisionShapeIndex = boxInt;
+			bodyShape.m_basePosition = btVector3(x0, y0, z0);
+			box = m_sim->createMultiBody(bodyShape);
+			break;
+
+		default:
+			//throw an error?
+			break;
+		}
+		
+		return box;
+	}
+
+	std::vector<int> btCustom::infoFromExcel(std::string filename, int sheetnumber)
+	{
+		return std::vector<int>();
+	}
+
+	std::vector<int> btCustom::loadFromExcel(btCustom::boxtype boxtype, std::string filename, int sheetnumber, int maxboxes)
+	{
+		
+		
+		
+		return std::vector<int>();
+	}
+
+	std::vector<int> btCustom::getAngles(btCustom::boxtype boxtype, std::string filename, int sheetnumber, int maxboxes, bool logging)
+	{
+		return std::vector<int>();
+	}
+
+	
+
+};
+
+
+//End class btCustom
+
+
 int main(int argc, char* argv[])
 {
-#ifdef B3_USE_ROBOTSIM_GUI
+
+
+	btCustom p = btCustom(true);
+
+	//p.resetWorld();
+
+	
+
+	/*
+
 	b3RobotSimulatorClientAPI* sim = new b3RobotSimulatorClientAPI();
 	bool isConnected = sim->connect(eCONNECT_GUI);
-#else
-	b3RobotSimulatorClientAPI_NoGUI* sim = new b3RobotSimulatorClientAPI_NoGUI();
-	bool isConnected = sim->connect(eCONNECT_DIRECT);
-#endif
+
+	//b3RobotSimulatorClientAPI_NoGUI* sim = new b3RobotSimulatorClientAPI_NoGUI();
+	//bool isConnected = sim->connect(eCONNECT_DIRECT);
+
 	if (!isConnected)
 	{
 		printf("Cannot connect\n");
 		return -1;
 	}
-	//Can also use eCONNECT_DIRECT,eCONNECT_SHARED_MEMORY,eCONNECT_UDP,eCONNECT_TCP, for example:
-	//sim->connect(eCONNECT_UDP, "localhost", 1234);
+	printf("Connected!");
+
+
 	sim->configureDebugVisualizer(COV_ENABLE_GUI, 0);
-	//	sim->configureDebugVisualizer( COV_ENABLE_SHADOWS, 0);//COV_ENABLE_WIREFRAME
 	sim->setTimeOut(10);
-	//syncBodies is only needed when connecting to an existing physics server that has already some bodies
 	sim->syncBodies();
 	btScalar fixedTimeStep = 1. / 240.;
 
@@ -50,23 +473,28 @@ int main(int argc, char* argv[])
 
 	sim->loadURDF("plane.urdf");
 
-	MinitaurSetup minitaur;
-	int minitaurUid = minitaur.setupMinitaur(sim, btVector3(0, 0, .3));
+	//#############################################################
 
-	//b3RobotSimulatorLoadUrdfFileArgs args;
-	//args.m_startPosition.setValue(2,0,1);
-	//int r2d2 = sim->loadURDF("r2d2.urdf",args);
+	b3RobotSimulatorCreateCollisionShapeArgs boxShape;
 
-	//b3RobotSimulatorLoadFileResults sdfResults;
-	//if (!sim->loadSDF("two_cubes.sdf",sdfResults))
-	//{
-	//		b3Warning("Can't load SDF!\n");
-	//}
+	b3RobotSimulatorCreateMultiBodyArgs bodyShape;
+	int boxInt;
+	int box;
+
+	boxShape.m_halfExtents = btVector3(0.5, 0.5, 2);
+
+	boxInt = sim->createCollisionShape(3, boxShape); //first int is shapeType, in this case 3 = cube 
+	bodyShape.m_baseMass = 1;
+	bodyShape.m_baseCollisionShapeIndex = boxInt;
+	bodyShape.m_basePosition = btVector3(1, 1, 1);
+	box = sim->createMultiBody(bodyShape);
+
+	//#############################################################
 
 	b3Clock clock;
 	double startTime = clock.getTimeInSeconds();
 	double simWallClockSeconds = 20.;
-#if 0
+#if 1
 	while (clock.getTimeInSeconds()-startTime < simWallClockSeconds)
 	{
 		sim->stepSimulation();
@@ -77,70 +505,7 @@ int main(int argc, char* argv[])
 	int minitaurLogId = -1;
 	int rotateCamera = 0;
 
-	while (sim->canSubmitCommand())
-	{
-		b3KeyboardEventsData keyEvents;
-		sim->getKeyboardEvents(&keyEvents);
-		if (keyEvents.m_numKeyboardEvents)
-		{
-			//printf("num key events = %d]\n", keyEvents.m_numKeyboardEvents);
-			//m_keyState is a flag combination of eButtonIsDown,eButtonTriggered, eButtonReleased
-			for (int i = 0; i < keyEvents.m_numKeyboardEvents; i++)
-			{
-				b3KeyboardEvent& e = keyEvents.m_keyboardEvents[i];
-
-				if (e.m_keyCode == '0')
-				{
-					if (e.m_keyState & eButtonTriggered)
-					{
-						if (vidLogId < 0)
-						{
-							vidLogId = sim->startStateLogging(STATE_LOGGING_VIDEO_MP4, "video.mp4");
-						}
-						else
-						{
-							sim->stopStateLogging(vidLogId);
-							vidLogId = -1;
-						}
-					}
-				}
-
-				if (e.m_keyCode == 'm')
-				{
-					if (minitaurLogId < 0 && e.m_keyState & eButtonTriggered)
-					{
-						minitaurLogId = sim->startStateLogging(STATE_LOGGING_MINITAUR, "simlog.bin");
-					}
-					if (minitaurLogId >= 0 && e.m_keyState & eButtonReleased)
-					{
-						sim->stopStateLogging(minitaurLogId);
-						minitaurLogId = -1;
-					}
-				}
-
-				if (e.m_keyCode == 'r' && e.m_keyState & eButtonTriggered)
-				{
-					rotateCamera = 1 - rotateCamera;
-				}
-
-				//printf("keyEvent[%d].m_keyCode = %d, state = %d\n", i,keyEvents.m_keyboardEvents[i].m_keyCode,keyEvents.m_keyboardEvents[i].m_keyState);
-			}
-		}
-		sim->stepSimulation();
-
-		if (rotateCamera)
-		{
-			static double yaw = 0;
-			double distance = 1;
-			yaw += 0.1;
-			btVector3 basePos;
-			btQuaternion baseOrn;
-			sim->getBasePositionAndOrientation(minitaurUid, basePos, baseOrn);
-			sim->resetDebugVisualizerCamera(distance, -20, yaw, basePos);
-		}
-		b3Clock::usleep(1000. * 1000. * fixedTimeStep);
-	}
-
+	
 	printf("sim->disconnect\n");
 
 	sim->disconnect();
@@ -149,4 +514,7 @@ int main(int argc, char* argv[])
 	delete sim;
 
 	printf("exit\n");
+
+	*/
+
 }
