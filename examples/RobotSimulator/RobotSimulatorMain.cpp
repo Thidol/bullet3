@@ -15,8 +15,7 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
-
-#include "libxl.h"
+//#include "libxl.h"
 
 
 #define ASSERT_EQ(a, b) assert((a) == (b));
@@ -59,13 +58,13 @@ public:
 		
 		*/
 
-		b3RobotSimulatorClientAPI* m_sim = new b3RobotSimulatorClientAPI();
-		bool isConnected = m_sim->connect(eCONNECT_GUI);
+		//b3RobotSimulatorClientAPI* m_sim = new b3RobotSimulatorClientAPI();
+		//bool isConnected = m_sim->connect(eCONNECT_GUI);
 
-		//b3RobotSimulatorClientAPI_NoGUI* sim = new b3RobotSimulatorClientAPI_NoGUI();
-		//bool isConnected = sim->connect(eCONNECT_DIRECT);
+		b3RobotSimulatorClientAPI_NoGUI* m_sim = new b3RobotSimulatorClientAPI_NoGUI();
+		bool isConnected = m_sim->connect(eCONNECT_DIRECT);
 
-		printf("Connected!");
+		printf("Connected!\n");
 
 		//#####################################################
 
@@ -75,6 +74,7 @@ public:
 		m_sim->syncBodies();
 		btScalar fixedTimeStep = 1. / 240.;
 
+		m_sim->setRealTimeSimulation(false);
 		m_sim->setTimeStep(fixedTimeStep);
 		m_sim->setGravity(btVector3(0, 0, -9.8));
 
@@ -98,8 +98,8 @@ public:
 		mPalletShape.m_basePosition = btVector3(0.4, 0.6, -0.1);
 		mPalletID = m_sim->createMultiBody(mPalletShape);
 
-
-		b3RobotSimulatorCreateCollisionShapeArgs shape;
+		/*                                            
+		b3RobotSimulatorCreateCollisionShapeArgs shape;       //Gare debug meetlat, kan weg
 		b3RobotSimulatorCreateMultiBodyArgs body;
 		int shapeID;
 		int bodyID;
@@ -112,6 +112,7 @@ public:
 		body.m_baseCollisionShapeIndex = shapeID;
 		body.m_basePosition = btVector3(-0.01, -0.01, 1);
 		bodyID = m_sim->createMultiBody(body);
+		*/
 		
 
 		//#############################################################
@@ -130,135 +131,162 @@ public:
 		//#############################################################
 		//Reading an csv
 
-		std::string filename{ "resources/stacks_003000.csv" };
-		std::fstream input{ filename };
-
-		if (!input.is_open()) {
-			printf("Couldn't read file");
-		}
-		else {
-			printf("found the file");
-		}
-		
-		std::vector<int> boxes;
-
-		for (std::string line; std::getline(input, line);) {
-
-			std::istringstream ss(std::move(line));
-			std::vector<float> data;
-
-			printf("analyzing line\n");
-			for (std::string cel; std::getline(ss, cel, ',');) {
-				float value = std::stof(cel);                       //conversion to float
-				data.push_back(std::move(value));
-				printf("analyzed value: ");
-				std::cout << value << '\n';
-			}
-
-			//data: index, x, y, z, w, l, h, orient, mass
-			//        0  , 1, 2, 3, 4, 5, 6,   7   , 8
-
-			printf("file read \n");
-
-			float x = data[1];
-			float y = data[2];
-			float z = data[3];
-			float w = data[4];
-			float l = data[5];
-			float h = data[6];
-
-			float x0 = x + (w / 2);
-			float y0 = y + (l / 2);
-			float z0 = z + (h / 2);
-
-			if (false) {  //simple boxes
-
-				b3RobotSimulatorCreateCollisionShapeArgs boxSize;
-				b3RobotSimulatorCreateMultiBodyArgs boxParam;
-				int cBoxID;
-				int boxID;
-
-				boxSize.m_halfExtents = btVector3(w / 2, l / 2, h / 2);
-
-				cBoxID = m_sim->createCollisionShape(3, boxSize); //first int is shapeType, in this case 3 = cube 
-				boxParam.m_baseMass = 1;
-				boxParam.m_baseCollisionShapeIndex = cBoxID;
-				boxParam.m_basePosition = btVector3(x0, y0, z0);
-				boxID = m_sim->createMultiBody(boxParam);
-
-				boxes.push_back(boxID);
-			}
-			else {    // Pre-deformed boxes
-				b3RobotSimulatorLoadUrdfFileArgs args;
-				args.m_startPosition = btVector3(x0, y0, z0);
-				args.m_globalScaling = btVector3(w, l, h);
-
-				int boxID = m_sim->loadURDF("resources/unitBox.urdf", args);
-			}
-
-			
-		}
-
-		printf("done loading boxes, starting simulation\n");
-
-		//#############################################################
-		//Get the angles
 
 		//Hyperparameters
-		
+
 		int maxsteps = 240;
 		float tolerance = 0.05;
+		float maxBoxes_range[6] = { 35, 36, 37, 38, 39, 40 };
 		float theta_range[14] = { 0, 1, 2, 3, 4, 5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 10 };
 		float phi_range[4] = { 0, 90 , 180, 270 };
-		std::vector<float> angles;										// 4 resulting angles
 
-		//start logging
+		//Timing parameters
 
-		int bcount = boxes.size();
-		std::vector<btVector3> loc_0;
+		b3Clock time;
 
-		for (unsigned int i = 0; i < boxes.size(); i++) {               // save starting locations
-			btVector3 position;
-			btQuaternion orientation;
-			m_sim->getBasePositionAndOrientation(boxes[i], position, orientation);
-			loc_0.push_back(position);
-		}
+		double globalStartTime = time.getTimeInSeconds();
 
-		printf("state saved\n");
 
-		int state = m_sim->saveStateToMemory();				           // save starting state
+		//for different numbers of boxes 
+		for (int maxBoxes : maxBoxes_range) {
 
-		for (float phi : phi_range) {								// direction  angle of tilt
+			//stack specific parameters
+			std::vector<float> angles;
+			std::vector<int> boxes;
+			int numberOfBoxes = 0;
 
-			float fallAngle = 15;
 
-			for (float theta : theta_range) {                       // iterating through list of angles
+			//Find the csv file
+			std::string filename{ "resources/stacks_003000.csv" };   // csv is from "stacks_003000.xls/pallet 2"
+			std::fstream input{ filename };
 
-				float x = 10 * sin(Deg2Rad(theta)) * sin(Deg2Rad(phi));
-				float y = 10 * sin(Deg2Rad(theta)) * cos(Deg2Rad(phi));
-				float z = -10 * cos(Deg2Rad(theta));
+			if (!input.is_open()) {
+				//printf("Couldn't read file");
+			}
+			else {
+				//printf("found the file");
+			}
 
-				m_sim->setGravity(btVector3(x, y, z));                //Change gravity
 
-				for (unsigned int i = 0; i < maxsteps; i++) {         //Simulate for a bit
-					m_sim->stepSimulation();
-					//printf("simulating...\n");
+			//read csv file
+			for (std::string line; std::getline(input, line);) {
+				//if the maximum number of boxes hasn't been spawned yet, make one
+				if (numberOfBoxes < maxBoxes) {
+
+					std::istringstream ss(std::move(line));
+					std::vector<float> data;
+
+					//printf("analyzing line for box ");
+					//std::cout << numberOfBoxes << "\n";
+
+					for (std::string cel; std::getline(ss, cel, ',');) {
+						float value = std::stof(cel);                       //conversion to float
+						data.push_back(std::move(value));
+						//printf("analyzed value: ");
+						//std::cout << value << '\n';
+					}
+
+					//data: index, x, y, z, w, l, h, orient, mass
+					//        0  , 1, 2, 3, 4, 5, 6,   7   , 8
+
+					//printf("file read \n");
+
+					float x = data[1];
+					float y = data[2];
+					float z = data[3];
+					float w = data[4];
+					float l = data[5];
+					float h = data[6];
+
+					float x0 = x + (w / 2);
+					float y0 = y + (l / 2);
+					float z0 = z + (h / 2);
+
+					if (true) {  //simple boxes
+
+						b3RobotSimulatorCreateCollisionShapeArgs boxSize;
+						b3RobotSimulatorCreateMultiBodyArgs boxParam;
+						int cBoxID;
+						int boxID;
+
+						boxSize.m_halfExtents = btVector3(w / 2, l / 2, h / 2);
+
+						cBoxID = m_sim->createCollisionShape(3, boxSize); //first int is shapeType, in this case 3 = cube 
+						boxParam.m_baseMass = 1;
+						boxParam.m_baseCollisionShapeIndex = cBoxID;
+						boxParam.m_basePosition = btVector3(x0, y0, z0);
+						boxID = m_sim->createMultiBody(boxParam);
+
+						boxes.push_back(boxID);
+					}
+					else {    // Pre-deformed boxes
+						b3RobotSimulatorLoadUrdfFileArgs args;
+						args.m_startPosition = btVector3(x0, y0, z0);
+						args.m_globalScaling = btVector3(w, l, h);
+
+						int boxID = m_sim->loadURDF("resources/unitBox.urdf", args);
+					}
+
+					numberOfBoxes++;
 				}
+			}
+			printf("done loading boxes, starting simulation\n");
 
-				printf("checking displacements\n");
 
-				std::vector<btVector3> loc;                           // get locations
-				for (unsigned int i = 0; i < boxes.size(); i++) {
-					btVector3 position;
-					btQuaternion orientation;
-					m_sim->getBasePositionAndOrientation(boxes[i], position, orientation);
-					loc.push_back(position);
-				}
 
-				if (loc_0.size() != loc.size()) {
-					printf("error!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-				}
-				else {												   // calculate displacement
+			//start timing
+			double startTime = time.getTimeInSeconds();
+
+			int bcount = boxes.size();
+			std::vector<btVector3> loc_0;
+
+			//save starting locations
+			for (unsigned int i = 0; i < boxes.size(); i++) { 
+				btVector3 position;
+				btQuaternion orientation;
+				m_sim->getBasePositionAndOrientation(boxes[i], position, orientation);
+				loc_0.push_back(position);
+			}
+						int state = m_sim->saveStateToMemory();
+			//printf("starting state saved\n");
+
+			//for north, eastm south, west...
+			for (float phi : phi_range) {								// direction  angle of tilt
+
+				float fallAngle = 15;
+
+				//test each angle from the list 
+				for (float theta : theta_range) {                       // iterating through list of angles
+
+					float x = 10 * sin(Deg2Rad(theta)) * sin(Deg2Rad(phi));
+					float y = 10 * sin(Deg2Rad(theta)) * cos(Deg2Rad(phi));
+					float z = -10 * cos(Deg2Rad(theta));
+
+					m_sim->setGravity(btVector3(x, y, z));                //Change gravity
+
+					//Simulate for a bit
+					for (unsigned int i = 0; i < maxsteps; i++) { 
+						m_sim->stepSimulation();
+						//printf("simulating...\n");
+					}
+
+					//checking displacements
+
+					//Get locations
+					std::vector<btVector3> loc;
+					for (unsigned int i = 0; i < boxes.size(); i++) {
+						btVector3 position;
+						btQuaternion orientation;
+						m_sim->getBasePositionAndOrientation(boxes[i], position, orientation);
+						loc.push_back(position);
+					}
+
+					//record largest distance for printing
+					float largestDist = 0;
+
+					//Calculate displacement
+			
+
 					for (unsigned int j = 0; j < loc.size(); j++) {
 
 						float dx = pow(loc[j][0] - loc_0[j][0], 2);
@@ -266,26 +294,50 @@ public:
 						float dz = pow(loc[j][2] - loc_0[j][2], 2);
 						float dist = pow(dx + dy + dz, 0.5);
 
+
+						if (dist > largestDist) {
+							largestDist = dist;
+						}
+						//Check if displacement is smaller than tolerace
 						if (dist > tolerance) {
 							fallAngle = theta;
-							break;								        //break theta loop
+							goto thetaIsDone;							        //break theta loop
 						}
-					}
-				}
-				
-			}
-			angles.push_back(fallAngle);
-			std::cout << "for phi = " << phi << "angle calculated: theta = " << fallAngle << "\n";
-			m_sim->restoreStateFromMemory(state);
 
+					}
+					//debug print
+					//std::cout << "boxes = " << maxBoxes << ", phi = " << phi << ", theta = " << theta << ", maxdist = " << largestDist << ". \n";
 			
+
+				}
+				thetaIsDone:
+
+				//record angle and reset state
+				angles.push_back(fallAngle);
+				//std::cout << "for phi = " << phi << ", theta = " << fallAngle << "\n";
+				m_sim->restoreStateFromMemory(state);
+
+			}
+
+			//reset world and remove state
+			m_sim->removeState(state);
+			for (unsigned int i = 0; i < boxes.size(); i++) {
+				m_sim->removeBody(boxes[i]);
+			}
+			m_sim->setGravity(btVector3(0, 0, 10));
+
+			double calcTime = time.getTimeInSeconds() - startTime;
+
+			std::cout << "stack done; " << maxBoxes << " boxes, time: " << calcTime;
+			std::cout << " s, angles: [ " << angles[0] << ", " << angles[1] << ", ";
+			std::cout << angles[2] << ", " << angles[3] << "] \n";
+
+
 		}
 
-		//reset world and remove state
-		m_sim->removeState(state);
+		double totalTime = time.getTimeInSeconds() - globalStartTime;
 
-		printf("done calculating angles!");
-
+		std::cout << "Done with " << sizeof(maxBoxes_range) << "stacks, total time: " << totalTime << "s \n";
 		//#############################################################
 		/*
 		
@@ -308,7 +360,7 @@ public:
 
 		b3Clock clock;
 		double startTime = clock.getTimeInSeconds();
-		double simWallClockSeconds = 20.;
+		double simWallClockSeconds = 200.;
 #if 1
 		while (clock.getTimeInSeconds() - startTime < simWallClockSeconds)
 		{
